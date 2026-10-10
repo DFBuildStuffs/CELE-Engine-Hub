@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, LogOut, Cloud, ShieldCheck } from 'lucide-react';
+import { X, LogOut, Cloud, ShieldCheck, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface AuthModalProps {
@@ -8,7 +8,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, firebaseUser, loginWithGoogle, logout } = useAuth();
+  const { currentUser, firebaseUser, loginWithGoogle, logout, loginAsGuest } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [error, setError] = useState('');
 
@@ -18,13 +18,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setError('');
     setIsSigningIn(true);
     try {
-      await loginWithGoogle();
-      onClose();
+      const success = await loginWithGoogle();
+      if (success) {
+        onClose();
+      }
     } catch (err: any) {
-      setError(err?.message || 'Google Sign-In was cancelled or failed. Please try again.');
+      if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') {
+        setError(err?.message || 'Google Sign-In was cancelled or failed. Please try again.');
+      }
     } finally {
       setIsSigningIn(false);
     }
+  };
+
+  const handleGuestSignIn = async () => {
+    await loginAsGuest('Guest Reviewee');
+    onClose();
   };
 
   const handleSignOut = async () => {
@@ -130,6 +139,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   />
                 </svg>
                 <span>{isSigningIn ? 'Connecting...' : 'Continue with Google'}</span>
+              </button>
+
+              <div className="relative py-1">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-zinc-200 dark:border-zinc-800" />
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase font-bold">
+                  <span className="bg-zinc-50 dark:bg-zinc-900 px-2 text-zinc-400">or</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGuestSignIn}
+                className="w-full py-2.5 px-4 bg-zinc-100 dark:bg-zinc-800/80 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-bold text-xs rounded-xl border border-zinc-200 dark:border-zinc-700 transition flex items-center justify-center gap-2 active:scale-95"
+              >
+                <UserIcon className="w-3.5 h-3.5 text-orange-500" />
+                <span>Continue as Guest Reviewee</span>
               </button>
             </div>
 

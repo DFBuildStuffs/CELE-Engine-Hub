@@ -11,9 +11,10 @@ interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   users: User[];
   isLoading: boolean;
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: () => Promise<boolean>;
   logout: () => Promise<void>;
   loginAs: (userId: string) => Promise<void>;
+  loginAsGuest: (name?: string) => Promise<User>;
   updateCurrentUserProfile: (updates: Partial<User>) => Promise<void>;
   awardXp: (amount: number, reason?: string) => Promise<void>;
   incrementStreak: () => Promise<void>;
@@ -80,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (): Promise<boolean> => {
     setIsLoading(true);
     try {
       const fbUser = await signInWithGoogle();
@@ -99,13 +100,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           origin: { y: 0.6 },
           colors: ['#f97316', '#eab308', '#ffffff'],
         });
+        return true;
       }
-    } catch (e) {
-      console.error('Login with Google error:', e);
+      return false;
+    } catch (e: any) {
+      if (e?.code === 'auth/popup-closed-by-user' || e?.code === 'auth/cancelled-popup-request') {
+        return false;
+      }
+      console.warn('Login with Google notice:', e?.message || e);
       throw e;
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loginAsGuest = async (name: string = 'Engineer Guest'): Promise<User> => {
+    const guestUser: User = {
+      id: 'guest_' + Date.now(),
+      name,
+      title: 'Reviewee / Candidate',
+      email: 'engineer@cele-exam.ph',
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`,
+      role: 'reviewer',
+      xp: 100,
+      streakDays: 1,
+      examsTaken: 0,
+      createdExamsCount: 0,
+      avgScore: 0,
+      unlockedBadges: [],
+    };
+    setCurrentUser(guestUser);
+    localStorage.setItem('cele_current_user_clean_v3', JSON.stringify(guestUser));
+    return guestUser;
   };
 
   const logout = async () => {
@@ -195,6 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithGoogle,
         logout,
         loginAs,
+        loginAsGuest,
         updateCurrentUserProfile,
         awardXp,
         incrementStreak,

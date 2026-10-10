@@ -88,12 +88,20 @@ export async function testFirestoreConnection() {
 }
 
 // Google Sign-In with popup
-export async function signInWithGoogle() {
+export async function signInWithGoogle(): Promise<FirebaseUser | null> {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error: any) {
-    console.error('Google Sign-In failed:', error);
+    if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') {
+      // User closed the popup before finishing authentication - normal cancellation
+      return null;
+    }
+    if (error?.code === 'auth/popup-blocked') {
+      console.warn('Sign-in popup was blocked by browser.');
+      throw new Error('Sign-in popup was blocked by your browser. Please enable popups or continue as guest.');
+    }
+    console.warn('Google Sign-In notice:', error?.message || error);
     throw error;
   }
 }
