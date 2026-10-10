@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
-import { X, LogOut, Cloud, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { X, LogOut, Cloud, ShieldCheck, User as UserIcon, RotateCcw, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onResetToBlankSlate?: () => Promise<void>;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onResetToBlankSlate }) => {
   const { currentUser, firebaseUser, loginWithGoogle, logout, loginAsGuest } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [error, setError] = useState('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -39,6 +42,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const handleSignOut = async () => {
     await logout();
     onClose();
+  };
+
+  const handleConfirmReset = async () => {
+    if (!onResetToBlankSlate) return;
+    setIsResetting(true);
+    try {
+      await onResetToBlankSlate();
+      setShowResetConfirm(false);
+      onClose();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   return (
@@ -163,6 +180,54 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             {error && (
               <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs">
                 {error}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Reset to Blank Slate Action */}
+        {onResetToBlankSlate && (
+          <div className="mt-4 pt-3.5 border-t border-zinc-100 dark:border-zinc-800">
+            {!showResetConfirm ? (
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(true)}
+                className="w-full py-2 px-3 text-zinc-500 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400 text-xs font-bold rounded-xl hover:bg-red-500/10 transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Return to Blank Slate</span>
+              </button>
+            ) : (
+              <div className="p-3 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 space-y-2.5 animate-in fade-in">
+                <div className="flex items-start gap-2 text-red-600 dark:text-red-400 text-xs">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <p className="leading-tight">
+                    Reset web app to blank slate? All imported exams and attempts will be permanently cleared.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowResetConfirm(false)}
+                    disabled={isResetting}
+                    className="flex-1 py-1.5 px-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-bold rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmReset}
+                    disabled={isResetting}
+                    className="flex-1 py-1.5 px-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1 shadow-sm"
+                  >
+                    {isResetting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isResetting ? 'Resetting...' : 'Confirm Reset'}</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

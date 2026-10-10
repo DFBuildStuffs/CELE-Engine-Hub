@@ -9,10 +9,27 @@ import {
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Attempt, Exam, User } from '../types';
 
-const STORAGE_KEY_EXAMS = 'cele_exams_clean_v3';
-const STORAGE_KEY_ATTEMPTS = 'cele_attempts_clean_v3';
-const STORAGE_KEY_USERS = 'cele_users_clean_v3';
-const STORAGE_KEY_CURRENT_USER = 'cele_current_user_clean_v3';
+const STORAGE_KEY_EXAMS = 'cele_exams_clean_v4';
+const STORAGE_KEY_ATTEMPTS = 'cele_attempts_clean_v4';
+const STORAGE_KEY_USERS = 'cele_users_clean_v4';
+const STORAGE_KEY_CURRENT_USER = 'cele_current_user_clean_v4';
+
+// Ensure any stale cache from prior imports and sessions is purged for blank slate
+try {
+  [
+    'cele_exams',
+    'cele_attempts',
+    'cele_users',
+    'cele_exams_clean_v1',
+    'cele_exams_clean_v2',
+    'cele_exams_clean_v3',
+    'cele_attempts_clean_v1',
+    'cele_attempts_clean_v2',
+    'cele_attempts_clean_v3',
+  ].forEach(k => localStorage.removeItem(k));
+} catch {
+  // Ignore storage access errors in restricted iframe environments
+}
 
 export const api = {
   // 1. Sync User Profile with Firestore
@@ -248,15 +265,14 @@ export const api = {
       const snap = await getDocs(collection(db, 'attempts'));
       const list: Attempt[] = [];
       snap.forEach(d => list.push(d.data() as Attempt));
-      if (list.length > 0) {
-        if (userId) return list.filter(a => a.userId === userId);
-        return list;
-      }
+      localStorage.setItem(STORAGE_KEY_ATTEMPTS, JSON.stringify(list));
+      if (userId) return list.filter(a => a.userId === userId);
+      return list;
     } catch (error: any) {
       if (error?.code === 'permission-denied' || String(error?.message).includes('Missing or insufficient permissions')) {
         handleFirestoreError(error, OperationType.LIST, 'attempts');
       }
-      // Local fallback
+      console.warn('Get attempts Firestore error, using local fallback:', error);
     }
     const localAtt: Attempt[] = JSON.parse(localStorage.getItem(STORAGE_KEY_ATTEMPTS) || '[]');
     if (userId) return localAtt.filter(a => a.userId === userId);
@@ -277,5 +293,33 @@ export const api = {
     }
     const localUsers: User[] = JSON.parse(localStorage.getItem(STORAGE_KEY_USERS) || '[]');
     return localUsers.sort((a, b) => (b.xp || 0) - (a.xp || 0));
+  },
+
+  // Reset web app to blank slate by purging cloud exams, attempts and local state
+  async resetToBlankSlate(): Promise<void> {
+    try {
+      localStorage.removeItem(STORAGE_KEY_EXAMS);
+      localStorage.removeItem(STORAGE_KEY_ATTEMPTS);
+    } catch {}
+
+    // Delete Firestore exams
+    try {
+      const snap = await getDocs(collection(db, 'exams'));
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, 'exams', d.id));
+      }
+    } catch (err) {
+      console.warn('Error clearing exams from Firestore:', err);
+    }
+
+    // Delete Firestore attempts
+    try {
+      const snap = await getDocs(collection(db, 'attempts'));
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, 'attempts', d.id));
+      }
+    } catch (err) {
+      console.warn('Error clearing attempts from Firestore:', err);
+    }
   },
 };

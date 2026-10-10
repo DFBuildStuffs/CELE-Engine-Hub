@@ -106,6 +106,19 @@ function MainApp() {
     showToast('Exported complete JSON package.', 'success');
   };
 
+  // Reset web app to clean blank slate
+  const handleResetToBlankSlate = async () => {
+    try {
+      await api.resetToBlankSlate();
+      setExams([]);
+      showToast('Web app returned to blank slate. Exams and attempts cleared.', 'info');
+      setActiveTab('exams');
+    } catch (err) {
+      console.error('Failed to reset app:', err);
+      showToast('Failed to reset app data.', 'error');
+    }
+  };
+
   return (
     <div className="min-h-screen flex bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 font-sans selection:bg-orange-500 selection:text-white transition-colors">
       {/* Toast Notification */}
@@ -150,6 +163,7 @@ function MainApp() {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+        onResetToBlankSlate={handleResetToBlankSlate}
       />
 
       {/* Milestone Unlocked Modal */}
