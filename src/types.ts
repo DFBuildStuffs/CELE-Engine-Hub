@@ -17,6 +17,8 @@ export interface Question {
   solutionFigureUrl?: string | null;
 }
 
+export type SolutionVisibility = 'per_question' | 'after_submission';
+
 export interface Exam {
   id: string;
   title: string;
@@ -29,6 +31,7 @@ export interface Exam {
   authorName?: string;
   downloadsCount?: number;
   attemptsCount?: number;
+  solutionVisibility?: SolutionVisibility; // 'per_question' | 'after_submission'
   questions: Question[];
 }
 

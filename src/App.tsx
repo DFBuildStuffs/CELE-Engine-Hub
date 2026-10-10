@@ -13,6 +13,7 @@ import { HowToView } from './components/HowToView';
 import { FigureLightbox } from './components/FigureLightbox';
 import { AuthModal } from './components/AuthModal';
 import { BadgeUnlockedModal } from './components/BadgeUnlockedModal';
+import { DeleteExamModal } from './components/DeleteExamModal';
 import { Exam, AppTab } from './types';
 import { api } from './services/api';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
@@ -29,6 +30,9 @@ function MainApp() {
   // Active Modes & Modals
   const [activeExamSimulator, setActiveExamSimulator] = useState<Exam | null>(null);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
+  const [builderMode, setBuilderMode] = useState<'create' | 'edit' | 'clone'>('create');
+  const [examToDelete, setExamToDelete] = useState<Exam | null>(null);
+  const [isDeletingExam, setIsDeletingExam] = useState(false);
   const [lightboxData, setLightboxData] = useState<{ url: string; title?: string } | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
@@ -69,15 +73,25 @@ function MainApp() {
       return [saved, ...prev];
     });
     setEditingExam(null);
+    setBuilderMode('create');
     setActiveTab('exams');
   };
 
-  // Delete Exam
-  const handleDeleteExam = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this deployed CELE exam?')) return;
-    await api.deleteExam(id);
-    setExams(prev => prev.filter(e => e.id !== id));
-    showToast('Exam removed from archive.', 'info');
+  // Delete Exam confirmed via Modal
+  const handleConfirmDeleteExam = async () => {
+    if (!examToDelete) return;
+    setIsDeletingExam(true);
+    try {
+      await api.deleteExam(examToDelete.id);
+      setExams(prev => prev.filter(e => e.id !== examToDelete.id));
+      showToast(`Exam "${examToDelete.title}" removed from archive.`, 'info');
+      setExamToDelete(null);
+    } catch (err) {
+      console.error('Failed to delete exam:', err);
+      showToast('Failed to delete exam.', 'error');
+    } finally {
+      setIsDeletingExam(false);
+    }
   };
 
   // Export Exam JSON Package
@@ -144,6 +158,15 @@ function MainApp() {
         onClose={clearUnlockedBadge}
       />
 
+      {/* Delete Exam Confirmation Modal */}
+      <DeleteExamModal
+        exam={examToDelete}
+        isOpen={Boolean(examToDelete)}
+        isDeleting={isDeletingExam}
+        onClose={() => setExamToDelete(null)}
+        onConfirm={handleConfirmDeleteExam}
+      />
+
       {/* Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
@@ -169,12 +192,19 @@ function MainApp() {
               onTakeExam={exam => setActiveExamSimulator(exam)}
               onEditExam={exam => {
                 setEditingExam(exam);
+                setBuilderMode('edit');
                 setActiveTab('builder');
               }}
-              onDeleteExam={handleDeleteExam}
+              onCloneExam={exam => {
+                setEditingExam(exam);
+                setBuilderMode('clone');
+                setActiveTab('builder');
+              }}
+              onDeleteExam={exam => setExamToDelete(exam)}
               onExportExam={handleExportExam}
               onCreateNew={() => {
                 setEditingExam(null);
+                setBuilderMode('create');
                 setActiveTab('builder');
               }}
               onOpenLightbox={(url, title) => setLightboxData({ url, title })}
@@ -184,9 +214,11 @@ function MainApp() {
           {activeTab === 'builder' && (
             <ExamBuilderWizard
               initialExam={editingExam}
+              mode={builderMode}
               onDeployExam={handleDeployExam}
               onCancel={() => {
                 setEditingExam(null);
+                setBuilderMode('create');
                 setActiveTab('exams');
               }}
               onOpenLightbox={(url, title) => setLightboxData({ url, title })}
@@ -212,6 +244,7 @@ function MainApp() {
             <HowToView
               onLoadTemplateIntoBuilder={() => {
                 setEditingExam(null);
+                setBuilderMode('create');
                 setActiveTab('builder');
               }}
             />

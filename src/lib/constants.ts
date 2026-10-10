@@ -126,6 +126,7 @@ export const CELE_JSON_TEMPLATE_FULL_EXAM = `{
   "subject": "SEC",
   "timeLimit": 120,
   "passingScore": 70,
+  "solutionVisibility": "after_submission",
   "description": "Board exam review covering reinforced concrete and structural analysis.",
   "questions": [
     {

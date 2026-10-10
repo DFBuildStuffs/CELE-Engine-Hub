@@ -239,6 +239,32 @@ Output: Provide a downloadable, import-ready .json file and a brief summary of t
             </p>
           </div>
         </div>
+
+        {/* Solution Visibility Parameter */}
+        <div className="p-5 rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3 md:col-span-2">
+          <h3 className="font-extrabold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+            Solution & Derivation Visibility Parameter
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-zinc-700 dark:text-zinc-300">
+            <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
+              <strong className="text-zinc-900 dark:text-white block mb-1">
+                <code>solutionVisibility: &quot;after_submission&quot;</code> (Default)
+              </strong>
+              <p className="text-zinc-600 dark:text-zinc-400">
+                Standard PRC Board Examination format. Full derivations and correct answer keys remain concealed until the student completes and submits the entire exam.
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
+              <strong className="text-zinc-900 dark:text-white block mb-1">
+                <code>solutionVisibility: &quot;per_question&quot;</code>
+              </strong>
+              <p className="text-zinc-600 dark:text-zinc-400">
+                Practice & Tutorial Mode. Step-by-step derivations and correct/incorrect answer feedback are instantly revealed upon choosing an option for each question.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

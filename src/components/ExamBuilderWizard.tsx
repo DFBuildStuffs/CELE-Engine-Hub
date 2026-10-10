@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   FileUp,
   CheckCircle2,
@@ -9,7 +9,11 @@ import {
   Plus,
   Rocket,
   Search,
-  Check
+  Check,
+  Sparkles,
+  Shield,
+  Pencil,
+  Copy
 } from 'lucide-react';
 import { Exam, Question, SubjectCode } from '../types';
 import { validateAndNormalizeCeleJson } from '../lib/schema-validator';
@@ -19,6 +23,7 @@ import { useAuth } from '../context/AuthContext';
 
 interface ExamBuilderWizardProps {
   initialExam?: Exam | null;
+  mode?: 'create' | 'edit' | 'clone';
   onDeployExam: (exam: Exam) => Promise<void>;
   onCancel: () => void;
   onOpenLightbox: (url: string, title?: string) => void;
@@ -27,6 +32,7 @@ interface ExamBuilderWizardProps {
 
 export const ExamBuilderWizard: React.FC<ExamBuilderWizardProps> = ({
   initialExam,
+  mode = 'create',
   onDeployExam,
   onCancel,
   onOpenLightbox,
@@ -34,21 +40,60 @@ export const ExamBuilderWizard: React.FC<ExamBuilderWizardProps> = ({
 }) => {
   const { currentUser, awardXp } = useAuth();
 
+  const isAuthor = Boolean(currentUser && initialExam?.authorId === currentUser.id);
+  const isAdmin = currentUser?.role === 'admin';
+  const canEdit = isAuthor || isAdmin;
+
+  // Strict ownership enforcement:
+  // If user attempted 'edit' on an exam created by another user, force 'clone' mode!
+  const effectiveMode: 'create' | 'edit' | 'clone' = useMemo(() => {
+    if (!initialExam) return 'create';
+    if (mode === 'clone') return 'clone';
+    if (mode === 'edit') {
+      if (!canEdit) return 'clone';
+      return 'edit';
+    }
+    return canEdit ? 'edit' : 'clone';
+  }, [initialExam, mode, canEdit]);
+
   const [activeStep, setActiveStep] = useState<number>(initialExam ? 3 : 2);
 
   const [examMeta, setExamMeta] = useState({
-    id: initialExam?.id || '',
-    title: initialExam?.title || 'CE Board Mock Exam - SEC & HPGE',
+    id: effectiveMode === 'clone' ? '' : (initialExam?.id || ''),
+    title: effectiveMode === 'clone' && initialExam
+      ? (initialExam.title.startsWith('Copy of ') ? initialExam.title : `Copy of ${initialExam.title}`)
+      : (initialExam?.title || 'CE Board Mock Exam - SEC & HPGE'),
     subject: (initialExam?.subject || 'SEC') as SubjectCode,
     description: initialExam?.description || 'Board exam mock set focusing on NSCP 2015 reinforced concrete and soil mechanics.',
     timeLimit: initialExam?.timeLimit || 120,
     passingScore: initialExam?.passingScore || 70,
+    solutionVisibility: (initialExam?.solutionVisibility || 'after_submission') as 'per_question' | 'after_submission',
   });
 
   const [rawJsonText, setRawJsonText] = useState('');
   const [questions, setQuestions] = useState<Question[]>(initialExam?.questions || []);
   const [validationResult, setValidationResult] = useState<any>(null);
   const [isDeploying, setIsDeploying] = useState(false);
+
+  // Sync state if initialExam or effectiveMode changes
+  useEffect(() => {
+    if (initialExam) {
+      const isCloning = effectiveMode === 'clone';
+      setExamMeta({
+        id: isCloning ? '' : (initialExam.id || ''),
+        title: isCloning
+          ? (initialExam.title.startsWith('Copy of ') ? initialExam.title : `Copy of ${initialExam.title}`)
+          : (initialExam.title || ''),
+        subject: (initialExam.subject || 'SEC') as SubjectCode,
+        description: initialExam.description || '',
+        timeLimit: initialExam.timeLimit || 120,
+        passingScore: initialExam.passingScore || 70,
+        solutionVisibility: (initialExam.solutionVisibility || 'after_submission') as 'per_question' | 'after_submission',
+      });
+      setQuestions(initialExam.questions || []);
+      setActiveStep(3);
+    }
+  }, [initialExam, effectiveMode]);
 
   const [questionSearch, setQuestionSearch] = useState('');
 
@@ -63,6 +108,7 @@ export const ExamBuilderWizard: React.FC<ExamBuilderWizardProps> = ({
       if (res.metadata.timeLimit) setExamMeta(prev => ({ ...prev, timeLimit: res.metadata.timeLimit! }));
       if (res.metadata.passingScore) setExamMeta(prev => ({ ...prev, passingScore: res.metadata.passingScore! }));
       if (res.metadata.description) setExamMeta(prev => ({ ...prev, description: res.metadata.description! }));
+      if (res.metadata.solutionVisibility) setExamMeta(prev => ({ ...prev, solutionVisibility: res.metadata.solutionVisibility! }));
 
       showToast(`Processed ${res.questions.length} questions.`, 'success');
     } else {
@@ -198,22 +244,33 @@ export const ExamBuilderWizard: React.FC<ExamBuilderWizardProps> = ({
 
     setIsDeploying(true);
     try {
+      const isCloning = effectiveMode === 'clone';
+      const isEditing = effectiveMode === 'edit';
+
       const examToDeploy: Exam = {
-        id: examMeta.id || 'cele-' + Date.now(),
+        id: isCloning || !examMeta.id ? ('cele-' + Date.now()) : examMeta.id,
         title: examMeta.title.trim(),
         subject: examMeta.subject,
         description: examMeta.description,
         timeLimit: Number(examMeta.timeLimit) || 120,
         passingScore: Number(examMeta.passingScore) || 70,
-        createdAt: new Date().toISOString().split('T')[0],
-        authorId: currentUser?.id || 'reviewer',
-        authorName: currentUser?.name || 'Review Contributor',
+        solutionVisibility: examMeta.solutionVisibility || 'after_submission',
+        createdAt: isEditing && initialExam?.createdAt ? initialExam.createdAt : new Date().toISOString().split('T')[0],
+        authorId: isCloning ? (currentUser?.id || 'reviewer') : (initialExam?.authorId || currentUser?.id || 'reviewer'),
+        authorName: isCloning ? (currentUser?.name || 'Review Contributor') : (initialExam?.authorName || currentUser?.name || 'Review Contributor'),
         questions,
       };
 
       await onDeployExam(examToDeploy);
-      await awardXp(200, 'Authoring CELE Exam');
-      showToast('🎉 Exam successfully published and synced to Firebase Cloud!', 'success');
+      if (isCloning) {
+        await awardXp(150, 'Cloning & Customizing CELE Exam');
+        showToast('🎉 Cloned exam successfully deployed as your own copy!', 'success');
+      } else if (isEditing) {
+        showToast('🎉 Exam successfully updated in archive!', 'success');
+      } else {
+        await awardXp(200, 'Authoring CELE Exam');
+        showToast('🎉 Exam successfully published and synced to Firebase Cloud!', 'success');
+      }
     } catch {
       showToast('Failed to deploy exam.', 'error');
     } finally {
@@ -234,6 +291,47 @@ export const ExamBuilderWizard: React.FC<ExamBuilderWizardProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Banner for Edit / Clone Mode */}
+      {effectiveMode === 'edit' && (
+        <div className="p-4 rounded-3xl bg-orange-500/10 border border-orange-500/30 text-orange-700 dark:text-orange-300 flex items-center justify-between text-xs animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-orange-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <Pencil className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-extrabold text-sm text-zinc-900 dark:text-white">Editing Exam</div>
+              <div className="text-zinc-600 dark:text-zinc-400">
+                You are updating your exam in place. Changes will be saved directly to the cloud repository.
+              </div>
+            </div>
+          </div>
+          <span className="px-3 py-1 rounded-xl bg-orange-500/20 text-orange-600 dark:text-orange-400 font-bold text-xs shrink-0">
+            Author: You
+          </span>
+        </div>
+      )}
+
+      {effectiveMode === 'clone' && (
+        <div className="p-4 rounded-3xl bg-blue-500/10 border border-blue-500/30 text-blue-700 dark:text-blue-300 flex items-center justify-between text-xs animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <Copy className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-extrabold text-sm text-zinc-900 dark:text-white">Cloning Exam Mode</div>
+              <div className="text-zinc-600 dark:text-zinc-400">
+                {initialExam?.authorName
+                  ? `Exams created by other authors (${initialExam.authorName}) cannot be edited directly. You are creating your own independent version.`
+                  : 'You are creating an independent copy of this exam. The original version will remain unchanged.'}
+              </div>
+            </div>
+          </div>
+          <span className="px-3 py-1 rounded-xl bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold text-xs shrink-0">
+            New Cloned Copy
+          </span>
+        </div>
+      )}
+
       {/* Stepper Header */}
       <div className="p-4 rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -366,6 +464,52 @@ export const ExamBuilderWizard: React.FC<ExamBuilderWizardProps> = ({
                 onChange={e => setExamMeta({ ...examMeta, description: e.target.value })}
                 className="w-full px-4 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
               />
+            </div>
+
+            {/* Solution Display Mode Parameter */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                Solution & Derivation Display Mode
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div
+                  onClick={() => setExamMeta({ ...examMeta, solutionVisibility: 'after_submission' })}
+                  className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${
+                    examMeta.solutionVisibility === 'after_submission'
+                      ? 'bg-orange-500/10 dark:bg-orange-500/20 border-orange-500 ring-2 ring-orange-500'
+                      : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Shield className={`w-4 h-4 shrink-0 ${examMeta.solutionVisibility === 'after_submission' ? 'text-orange-500' : 'text-zinc-400'}`} />
+                    <span className="font-extrabold text-xs text-zinc-900 dark:text-white">
+                      After Submitting Whole Exam
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">
+                    Standard Board Exam Mode. Full derivations and correct answer keys remain sealed until the exam is officially submitted.
+                  </p>
+                </div>
+
+                <div
+                  onClick={() => setExamMeta({ ...examMeta, solutionVisibility: 'per_question' })}
+                  className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${
+                    examMeta.solutionVisibility === 'per_question'
+                      ? 'bg-orange-500/10 dark:bg-orange-500/20 border-orange-500 ring-2 ring-orange-500'
+                      : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Sparkles className={`w-4 h-4 shrink-0 ${examMeta.solutionVisibility === 'per_question' ? 'text-orange-500' : 'text-zinc-400'}`} />
+                    <span className="font-extrabold text-xs text-zinc-900 dark:text-white">
+                      After Answering Each Question
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">
+                    Instant Practice & Tutorial Mode. Step-by-step solution derivations and correct answers are revealed right after choosing an answer.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -513,7 +657,37 @@ export const ExamBuilderWizard: React.FC<ExamBuilderWizardProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-1 rounded-xl text-xs font-bold">
+                <span className="text-[10px] text-zinc-400 pl-1.5 uppercase font-black">Mode:</span>
+                <button
+                  type="button"
+                  onClick={() => setExamMeta(prev => ({ ...prev, solutionVisibility: 'after_submission' }))}
+                  className={`px-2.5 py-1 rounded-lg transition flex items-center gap-1 ${
+                    examMeta.solutionVisibility === 'after_submission'
+                      ? 'bg-white dark:bg-zinc-800 text-orange-600 dark:text-orange-400 shadow-sm border border-orange-500/30'
+                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  }`}
+                  title="Solutions only shown after submitting whole exam"
+                >
+                  <Shield className="w-3 h-3" />
+                  <span>After Exam</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExamMeta(prev => ({ ...prev, solutionVisibility: 'per_question' }))}
+                  className={`px-2.5 py-1 rounded-lg transition flex items-center gap-1 ${
+                    examMeta.solutionVisibility === 'per_question'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  }`}
+                  title="Solution appears after answering each question"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Per Question</span>
+                </button>
+              </div>
+
               <button
                 onClick={handleAddQuestion}
                 className="px-3.5 py-1.5 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 font-bold text-xs rounded-xl transition flex items-center gap-1"
@@ -525,10 +699,24 @@ export const ExamBuilderWizard: React.FC<ExamBuilderWizardProps> = ({
               <button
                 onClick={handleDeploy}
                 disabled={isDeploying}
-                className="px-5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5"
+                className="px-5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
               >
-                <Rocket className="w-3.5 h-3.5" />
-                <span>Deploy</span>
+                {effectiveMode === 'edit' ? (
+                  <>
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Save & Update Exam</span>
+                  </>
+                ) : effectiveMode === 'clone' ? (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Deploy Cloned Exam</span>
+                  </>
+                ) : (
+                  <>
+                    <Rocket className="w-3.5 h-3.5" />
+                    <span>Deploy ({examMeta.solutionVisibility === 'per_question' ? 'Per-Q' : 'Sealed'})</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

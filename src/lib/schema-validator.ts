@@ -8,6 +8,7 @@ export interface ParseResult {
     timeLimit?: number;
     passingScore?: number;
     description?: string;
+    solutionVisibility?: 'per_question' | 'after_submission';
   };
   validation: SchemaValidationResult;
 }
@@ -56,6 +57,12 @@ export function validateAndNormalizeCeleJson(rawInput: string | object): ParseRe
       metadata.passingScore = Number(parsedObj.passingScore || parsedObj.passing_score);
     }
     if (parsedObj.description) metadata.description = String(parsedObj.description);
+    if (parsedObj.solutionVisibility || parsedObj.solution_visibility) {
+      const vis = String(parsedObj.solutionVisibility || parsedObj.solution_visibility);
+      if (vis === 'per_question' || vis === 'after_submission') {
+        metadata.solutionVisibility = vis;
+      }
+    }
 
     if (Array.isArray(parsedObj.questions)) {
       rawQuestions = parsedObj.questions;

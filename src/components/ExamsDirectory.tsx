@@ -6,6 +6,8 @@ import {
   Download,
   Trash2,
   Copy,
+  Pencil,
+  Lock,
   Clock,
   Layers,
   Image as ImageIcon,
@@ -21,7 +23,8 @@ interface ExamsDirectoryProps {
   exams: Exam[];
   onTakeExam: (exam: Exam) => void;
   onEditExam: (exam: Exam) => void;
-  onDeleteExam: (id: string) => void;
+  onCloneExam: (exam: Exam) => void;
+  onDeleteExam: (exam: Exam) => void;
   onExportExam: (exam: Exam) => void;
   onCreateNew: () => void;
   onOpenLightbox: (url: string, title?: string) => void;
@@ -31,6 +34,7 @@ export const ExamsDirectory: React.FC<ExamsDirectoryProps> = ({
   exams,
   onTakeExam,
   onEditExam,
+  onCloneExam,
   onDeleteExam,
   onExportExam,
   onCreateNew,
@@ -203,7 +207,9 @@ export const ExamsDirectory: React.FC<ExamsDirectoryProps> = ({
             const subjectMeta = CELE_SUBJECTS[exam.subject] || CELE_SUBJECTS.SEC;
             const figCount = exam.questions.filter(q => q.questionFigureUrl || q.solutionFigureUrl).length;
             const isExpanded = expandedExamId === exam.id;
-            const isAuthor = currentUser && exam.authorId === currentUser.id;
+            const isAuthor = Boolean(currentUser && exam.authorId === currentUser.id);
+            const isAdmin = currentUser?.role === 'admin';
+            const canManage = isAuthor || isAdmin;
 
             return (
               <div
@@ -213,9 +219,29 @@ export const ExamsDirectory: React.FC<ExamsDirectoryProps> = ({
                 <div className="space-y-3.5">
                   {/* Badges */}
                   <div className="flex items-center justify-between">
-                    <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${subjectMeta.badgeBg} ${subjectMeta.badgeBorder} ${subjectMeta.badgeText}`}>
-                      {subjectMeta.name}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${subjectMeta.badgeBg} ${subjectMeta.badgeBorder} ${subjectMeta.badgeText}`}>
+                        {subjectMeta.name}
+                      </span>
+                      {exam.solutionVisibility === 'per_question' ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                          Per-Question Solutions
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+                          Solutions After Exam
+                        </span>
+                      )}
+                      {isAuthor ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          Your Exam
+                        </span>
+                      ) : isAdmin ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                          Admin
+                        </span>
+                      ) : null}
+                    </div>
                     <span className="text-[11px] font-mono text-zinc-400">
                       {exam.createdAt}
                     </span>
@@ -277,7 +303,9 @@ export const ExamsDirectory: React.FC<ExamsDirectoryProps> = ({
                         <div key={idx} className="p-2.5 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 space-y-1">
                           <div className="flex items-center justify-between text-[11px]">
                             <span className="font-bold text-orange-500">#{q.order || idx + 1}</span>
-                            <span className="text-zinc-400 font-mono text-[10px]">Key: {q.correctAnswer}</span>
+                            {(isAuthor || currentUser?.role === 'admin' || exam.solutionVisibility === 'per_question') && (
+                              <span className="text-zinc-400 font-mono text-[10px]">Key: {q.correctAnswer}</span>
+                            )}
                           </div>
                           <div className="text-zinc-800 dark:text-zinc-200 text-xs">
                             <LatexRenderer text={q.questionText} />
@@ -301,28 +329,58 @@ export const ExamsDirectory: React.FC<ExamsDirectoryProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => onExportExam(exam)}
-                      className="flex-1 py-1.5 px-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5"
+                      className="p-1.5 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1"
+                      title="Export JSON"
                     >
                       <Download className="w-3.5 h-3.5 text-yellow-500" />
-                      <span>Export</span>
                     </button>
 
-                    <button
-                      onClick={() => onEditExam(exam)}
-                      title="Clone/Edit"
-                      className="p-1.5 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl transition"
-                    >
-                      <Copy className="w-3.5 h-3.5 text-orange-500" />
-                    </button>
+                    {canManage ? (
+                      <>
+                        <button
+                          onClick={() => onEditExam(exam)}
+                          title="Edit your exam"
+                          className="flex-1 py-1.5 px-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-600 dark:text-orange-400 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 active:scale-95"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
 
-                    {(isAuthor || currentUser?.role === 'admin') && (
-                      <button
-                        onClick={() => onDeleteExam(exam.id)}
-                        title="Delete"
-                        className="p-1.5 bg-zinc-100 dark:bg-zinc-900 hover:bg-red-500/20 border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-red-500 rounded-xl transition"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        <button
+                          onClick={() => onCloneExam(exam)}
+                          title="Clone as new copy"
+                          className="p-1.5 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-xl transition active:scale-95"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-blue-500" />
+                        </button>
+
+                        <button
+                          onClick={() => onDeleteExam(exam)}
+                          title="Delete exam"
+                          className="p-1.5 bg-zinc-100 dark:bg-zinc-900 hover:bg-red-500/20 text-zinc-500 hover:text-red-500 border border-zinc-200 dark:border-zinc-800 rounded-xl transition active:scale-95"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex-1 flex items-center gap-1.5">
+                        <button
+                          onClick={() => onCloneExam(exam)}
+                          title="Clone this exam to edit and customize your own version"
+                          className="flex-1 py-1.5 px-2.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 active:scale-95"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Clone to Edit</span>
+                        </button>
+
+                        <span
+                          className="text-[10px] text-zinc-400 dark:text-zinc-500 font-semibold px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center gap-1 shrink-0 cursor-help"
+                          title="Exams created by other users cannot be edited directly, only cloned."
+                        >
+                          <Lock className="w-3 h-3 text-zinc-400" />
+                          <span>Clone only</span>
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>
