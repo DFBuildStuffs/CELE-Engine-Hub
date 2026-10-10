@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered CELE reviewee or author profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "maxLength": 150 },
+        "avatar": { "type": "string", "maxLength": 2048 },
+        "role": { "type": "string", "enum": ["student", "reviewer", "admin"] },
+        "xp": { "type": "number" },
+        "streakDays": { "type": "number" },
+        "examsTaken": { "type": "number" },
+        "createdExamsCount": { "type": "number" },
+        "avgScore": { "type": "number" },
+        "unlockedBadges": { "type": "array" }
+      },
+      "required": ["id", "name", "email", "xp"]
+    },
+    "Exam": {
+      "title": "Exam",
+      "description": "Civil Engineering review exam with questions, equations, and diagrams",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 250 },
+        "subject": { "type": "string", "enum": ["SEC", "HPGE", "MSTE"] },
+        "description": { "type": "string", "maxLength": 2000 },
+        "timeLimit": { "type": "number" },
+        "passingScore": { "type": "number" },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 120 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "downloadsCount": { "type": "number" },
+        "attemptsCount": { "type": "number" },
+        "questions": { "type": "array" }
+      },
+      "required": ["id", "title", "subject", "timeLimit", "passingScore", "questions"]
+    },
+    "Attempt": {
+      "title": "Attempt",
+      "description": "Completed mock exam test attempt with scored answers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "examId": { "type": "string", "maxLength": 128 },
+        "examTitle": { "type": "string", "maxLength": 250 },
+        "subject": { "type": "string", "enum": ["SEC", "HPGE", "MSTE"] },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 120 },
+        "score": { "type": "number" },
+        "totalQuestions": { "type": "number" },
+        "percentage": { "type": "number" },
+        "passed": { "type": "boolean" },
+        "timeSpentSeconds": { "type": "number" },
+        "completedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "examId", "userId", "score", "totalQuestions", "percentage", "passed"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile with gamified stats and achievements"
+    },
+    "/exams/{examId}": {
+      "schema": "Exam",
+      "description": "Civil Engineering board exam packages and question banks shared across devices"
+    },
+    "/attempts/{attemptId}": {
+      "schema": "Attempt",
+      "description": "Record of a candidate's completed mock exam attempt"
+    }
+  }
+}

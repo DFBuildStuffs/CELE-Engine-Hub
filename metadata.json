@@ -1,0 +1,6 @@
+{
+  "name": "CELE Board Engine - Civil Engineering Exam Hub",
+  "description": "High-performance full-stack CELE exam builder, JSON validator, multi-user question bank, gamified leaderboard, and PRC mock simulator.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
